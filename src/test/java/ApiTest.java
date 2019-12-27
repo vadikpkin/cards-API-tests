@@ -6,10 +6,13 @@ import io.restassured.response.Response;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import util.Dao;
+import util.DataHelper;
 
+import javax.sound.midi.Soundbank;
 import java.sql.SQLException;
 
 
+import static java.lang.Thread.sleep;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ApiTest {
@@ -42,11 +45,21 @@ public class ApiTest {
     }
 
     @Test
-    void shouldSubmitValidAuthCode() throws SQLException {
+    void shouldReturn200ValidAuthCode() throws SQLException {
         Dao.clearAuthCodes();
         login.sendPostRequest("vasya", "qwerty123");
         Response response = auth.sendAuthCode("vasya", Dao.getAuthCode(Dao.getId("vasya")));
         int expectedStatusCode = 200;
+        int actualStatusCode = response.getStatusCode();
+        assertEquals(expectedStatusCode, actualStatusCode);
+    }
+
+    @Test
+    void shouldReturn400InValidAuthCode() throws SQLException {
+        Dao.clearAuthCodes();
+        login.sendPostRequest("vasya", "qwerty123");
+        Response response = auth.sendAuthCode("vasya", "999999");
+        int expectedStatusCode = 400;
         int actualStatusCode = response.getStatusCode();
         assertEquals(expectedStatusCode, actualStatusCode);
     }
@@ -72,13 +85,13 @@ public class ApiTest {
 
     @Test
     void
-    shouldTransferMoneyInBoundsOfBalance() throws SQLException {
+    shouldTransferMoneyBetweenUserCardsInBoundsOfBalance() throws SQLException {
         Dao.clearAuthCodes();
         Dao.setBalanceTo10000();
         login.sendPostRequest("vasya", "qwerty123");
         auth.sendAuthCode("vasya", Dao.getAuthCode(Dao.getId("vasya")));
         String token = auth.getToken("vasya");
-        int paymentInRub = 1000;
+        int paymentInRub = DataHelper.getRandomMoneyInt();
         Response httpResponse = transfer.transferMoney("5559 0000 0000 0001", "5559 0000 0000 0002", paymentInRub, token);
         int expectedBalanceFromCardInKopecs = 1000000 - paymentInRub * 100;
         int expectedBalanceToCardInKopecs = 1000000 + paymentInRub * 100;
@@ -92,13 +105,13 @@ public class ApiTest {
 
     @Test
     void
-    shouldNotTransferMoneyOutOfBoundsOfBalance() throws SQLException {
+    shouldNotTransferMoneyBetweenUserCardsOutOfBoundsOfBalance() throws SQLException {
         Dao.clearAuthCodes();
         Dao.setBalanceTo10000();
         login.sendPostRequest("vasya", "qwerty123");
         auth.sendAuthCode("vasya", Dao.getAuthCode(Dao.getId("vasya")));
         String token = auth.getToken("vasya");
-        int paymentInRub = 11000;
+        int paymentInRub = DataHelper.getRandomMoneyIntOutOfBounds();
         Response httpResponse = transfer.transferMoney("5559 0000 0000 0001", "5559 0000 0000 0002", paymentInRub, token);
         int expectedStatusCode = 400;
         assertEquals(expectedStatusCode, httpResponse.getStatusCode());
@@ -106,23 +119,16 @@ public class ApiTest {
 
     @Test
     void
-    shouldTransferMoneyInBoundsOfBalanceDoubleValue() throws SQLException {
+    shouldNotTransferMoneyFromNotUsersCardToUserCards() throws SQLException {
         Dao.clearAuthCodes();
         Dao.setBalanceTo10000();
         login.sendPostRequest("vasya", "qwerty123");
         auth.sendAuthCode("vasya", Dao.getAuthCode(Dao.getId("vasya")));
         String token = auth.getToken("vasya");
-        double paymentInRub = 1000.5;
-        Response httpResponse = transfer.transferMoney("5559 0000 0000 0001", "5559 0000 0000 0002", paymentInRub, token);
-        int expectedBalanceFromCardInKopecs = (int) (1000000 - paymentInRub * 100);
-        int expectedBalanceToCardInKopecs = (int) (1000000 + paymentInRub * 100);
-        int expectedStatusCode = 200;
-        int actualBalanceFromCardInKopecs = Integer.parseInt(Dao.getCardBalance("5559 0000 0000 0001"));
-        int actualBalanceToCardInKopecs = Integer.parseInt(Dao.getCardBalance("5559 0000 0000 0002"));
-        assertEquals(expectedBalanceFromCardInKopecs, actualBalanceFromCardInKopecs);
-        assertEquals(expectedBalanceToCardInKopecs, actualBalanceToCardInKopecs);
+        int paymentInRub = DataHelper.getRandomMoneyInt();
+        Response httpResponse = transfer.transferMoney("5559 0000 0000 3434", "5559 0000 0000 0002", paymentInRub, token);
+        int expectedStatusCode = 400;
         assertEquals(expectedStatusCode, httpResponse.getStatusCode());
     }
-
 }
 
